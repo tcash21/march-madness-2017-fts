@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+root.dir: "../../"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = normalizePath("../../"))
+library(randomForest)
+```
+
+```{r include=FALSE}
+MultiLogLoss <- function(act, pred){
+  eps <- 1e-15
+  pred <- pmin(pmax(pred, eps), 1 - eps)
+  sum(act * log(pred) + (1 - act) * log(1 - pred)) * -1/NROW(act)
+}
+
+# Note to self: Should use PCA or other dimensionality reduction to create some features.
+
+source("preprocess.R")
+tourney_matchup_training_local = tourney_matchup_training %>%
+  select(-Team_Name.1, -Team_Name.2, -Season, -team.1, -team.2)
+tourney_matchup_training_local_train = sample_frac(tourney_matchup_training_local, 0.8)
+tourney_matchup_training_local_test = setdiff(tourney_matchup_training_local, tourney_matchup_training_local_train)
+```
+
+```{r}
+# Classification
+rf.class = randomForest(factor(team.1.win) ~ .,
+                  data=tourney_matchup_training_local_train,
+                  classwt = c(63,64), # 64 wins and 63 losses in a tournament
+                  ntree = 500,
+                  importance=T)
+pred = predict(rf.class, tourney_matchup_training_local_test, type="prob")
+MultiLogLoss(tourney_matchup_training_local_test$team.1.win, pred[,2])
+
+# Regression
+rf.reg = randomForest(team.1.win ~ .,
+                  data=tourney_matchup_training_local_train,
+                  
+                  ntree = 500,
+                  importance=T)
+pred = predict(rf.reg, tourney_matchup_training_local_test, type="response")
+MultiLogLoss(tourney_matchup_training_local_test$team.1.win, pred)
+
+importance(rf.class)
+importance(rf.reg)
+```
+
